@@ -3,13 +3,6 @@
 #include<stdio.h>
 #include<stdlib.h>
 #include<string.h>
-#include <SDL.h>
-#include "Tetris.cpp"
-#include "main.h"
-#include <bitset>
-#include <ctime>
-
-
 extern "C" {
 	//#ifdef BIT64
 	//#include"./sdl64/include/SDL.h"
@@ -19,17 +12,23 @@ extern "C" {
 //#endif
 }
 const int FPS_LIMIT = 30;
+#include <SDL.h>
+#include "Tetris.cpp"
+#include "main.h"
+#include <ctime>
+
+
 const int FRAME_TIME = 1000 / FPS_LIMIT;
 const int SCREEN_WIDTH = 640;
 const int  SCREEN_HEIGHT = 480;
 const bool FULLSCREEN = false;
 const int BLOCK_SIZE = 20;
-int outLineColor = I_RED;
+int outLineColor = I_LIONESS;
 
 
 int Colors[6];
 const int PADDING_X = 200;
-const int PADDING_Y = 40;
+const int PADDING_Y = 20;
 
 void render(SDL_Surface* screen, Tetris& game);
 void DrawString(SDL_Surface *screen, int x, int y, const char *text, SDL_Surface *charset);
@@ -101,14 +100,14 @@ void DrawFullRectangle(SDL_Surface *screen, int x, int y, int w, int h, Uint32 o
 	for (i = y + 1; i < y + h - 1; i++)
 		DrawLine(screen, x + 1, i, w - 2, 1, 0, fillColor);
 };
-void DrawRectangle(struct SDL_Surface *screen, int x, int y, int w, int h, Uint32 outlineColor) {
+void DrawRectangle(SDL_Surface *screen, int x, int y, int w, int h, Uint32 outlineColor) {
 	DrawLine(screen, x, y, h, 0, 1, outlineColor);
 	DrawLine(screen, x + w - 1, y, h, 0, 1, outlineColor);
 	DrawLine(screen, x, y, w, 1, 0, outlineColor);
 	DrawLine(screen, x, y + h - 1, w, 1, 0, outlineColor);
 };
 
-void handleInput(Tetris &game, SDL_Event &event, bool &quit)
+void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause)
 {
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -116,11 +115,20 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit)
 			if (event.key.keysym.sym == SDLK_ESCAPE) quit = true;
 			break;
 		case SDL_KEYUP:
-			if (event.key.keysym.sym == SDLK_UP || event.key.keysym.sym == SDLK_SPACE)
+			switch (event.key.keysym.sym)
 			{
+			case SDLK_UP:case SDLK_SPACE:
+			{ // rotate block
 				char** player = rotate(game.Player, SHAPE_SIZE);
 				game.DisposePlayer();
 				game.Player = player;
+				break;
+			}
+			case SDLK_p:
+				pause = !pause;
+				break;
+			default:
+				break;
 			}
 			break;
 		case SDL_QUIT:
@@ -154,7 +162,16 @@ void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
 }
 void render(SDL_Surface* screen, Tetris& game)
 {
-	// 2 fields are hidden
+	// top border 
+	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y - BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
+	// left
+	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y,BLOCK_SIZE, (game.Height + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
+	// bottom
+	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y + game.Height * BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
+	// right
+	DrawFullRectangle(screen, PADDING_X + game.Width * BLOCK_SIZE, PADDING_Y, BLOCK_SIZE, (game.Height + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
+
+	// 2 fields are hidden (shhh...)
 	for (int y = 2; y < game.Height; y++)
 	{
 		for (int x = 0; x < game.Width; x++)
@@ -226,8 +243,8 @@ char Pieces[7][5][5] = {
 },{
 	//black t
 	{0,0,0,0,0},
-	{0,0,I_BLACK,0,0},
-	{0,I_BLACK,I_BLACK,I_BLACK,0},
+	{0,0,I_LIONESS,0,0},
+	{0,I_LIONESS,I_LIONESS,I_LIONESS,0},
 	{0,0,0,0,0},
 	{0,0,0,0,0}
 }
@@ -315,6 +332,7 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		Colors[3] = SDL_MapRGB(screen->format, 0x11, 0x11, 0xCC);
 		Colors[4] = SDL_MapRGB(screen->format, 0xFF, 0xFF, 0xFF);
 		Colors[5] = SDL_MapRGB(screen->format, 0xE8, 0xD6, 0x97);
+		Colors[6] = SDL_MapRGB(screen->format, 147, 188, 182);
 	}
 
 	{
@@ -345,7 +363,7 @@ int main(int argc, char **argv) {	//double etiSpeed;
 	int renderTime = 0, deltaMs;
 	int fps = 0, frames = 0;
 	double fpsTimer = 0;
-	bool quit = false;
+	bool quit = false, pause = false;
 	worldTime = 0;
 
 	while (!quit) {
@@ -356,12 +374,14 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		currentTime = lastTime;
 		worldTime += deltaS;
 
-		handleInput(game, event, quit);
+		handleInput(game, event, quit, pause);
 
-		update(game, deltaMs);
+		if (!pause) {
+			update(game, deltaMs);
+		}
 
 		//background
-		SDL_FillRect(screen, NULL, Colors[I_LIONESS]);
+		SDL_FillRect(screen, NULL, Colors[I_BLACK]);
 
 		// game with player
 		render(screen, game);
@@ -378,6 +398,11 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, 10, stringBuffer, charset);
 		sprintf(stringBuffer, "DEBUG INFO X");
 		DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, 26, stringBuffer, charset);
+		if (pause)
+		{
+			sprintf(stringBuffer, "PAUSED. Click [P] to resume...");
+			DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, screen->h / 2, stringBuffer, charset);
+		}
 
 		// old not accelerated drawing
 		SDL_UpdateTexture(scrtex, NULL, screen->pixels, screen->pitch);
@@ -389,7 +414,7 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		frames++;
 		renderTime = SDL_GetTicks() - lastTime;
 		//Sleep the remaining frame time 
-		if (deltaS < FRAME_TIME) {
+		if (renderTime < FRAME_TIME) {
 			SDL_Delay(FRAME_TIME - renderTime);
 		}
 	}

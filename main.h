@@ -6,6 +6,7 @@ const char I_RED = 2;
 const char I_BLUE = 3;
 const char I_WHITE = 4;
 const char I_LIONESS = 5;
+const char I_LIGHTGREEN = 6;
 
 const int SHAPE_SIZE = 5;
 
