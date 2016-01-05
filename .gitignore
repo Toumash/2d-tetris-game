@@ -1,0 +1,9 @@
+*.suo
+Debug
+bin
+obj
+*.exe
+*.user
+*.sdf
+*.opensdf
+*.vs
