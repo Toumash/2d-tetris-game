@@ -6,16 +6,21 @@
 
 struct Tetris
 {
-	char** Matrix;
-	char** Player;
+private:
 	int PlayerX;
 	int PlayerY;
+public:
+	char** Matrix;
+	char** Player;
+
 	int Width;
 	int Height;
 	bool canRotate;
 
 	int score = 0, level = 0;
 	double worldTime = 0;
+	int LastPlayerX;
+	int LastPlayerY;
 
 	Tetris(int width, int height)
 	{
@@ -40,6 +45,24 @@ struct Tetris
 		}
 	}
 
+	int GetPlayerX() const
+	{
+		return this->PlayerX;
+	}
+	int GetPlayerY() const
+	{
+		return this->PlayerY;
+	}
+	void SetPlayerX(int x)
+	{
+		LastPlayerX = PlayerX;
+		PlayerX = x;
+	}
+	void SetPlayerY(int y)
+	{
+		LastPlayerY = PlayerY;
+		PlayerY = y;
+	}
 	bool isColliding(int dstX, int dstY, char** player) const
 	{
 		char** matrix = this->Matrix;

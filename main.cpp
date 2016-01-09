@@ -11,7 +11,7 @@ extern "C" {
 #include"./sdl/include/SDL_main.h"
 //#endif
 }
-const int FPS_LIMIT = 10;
+const int FPS_LIMIT = 50;
 #include <SDL.h>
 #include "Tetris.cpp"
 #include "main.h"
@@ -109,6 +109,20 @@ char** getShape(int index);
 char** rotate(char** array, int size);
 void nextShape(Tetris& game);
 
+float Approach(float flGoal, float flCurrent, float dt)
+{
+	float flDifference = flGoal - flCurrent;
+	if (flDifference > dt)
+	{
+		return flCurrent + dt;
+	}
+	if (flDifference < -dt)
+	{
+		return flCurrent - dt;
+	}
+	return flGoal;
+}
+
 // narysowanie napisu txt na powierzchni screen, zaczynaj¹c od punktu (x, y)
 // charset to bitmapa 128x128 zawieraj¹ca znaki
 void DrawString(SDL_Surface *screen, int x, int y, const char *text, SDL_Surface *charset) {
@@ -180,15 +194,15 @@ void nextShape(Tetris& game)
 	char** newShape = getShape(piece);
 	game.NextShape(newShape);
 	game.canRotate = piece != S_Square;
-	game.PlayerX = game.Width / 2 - 1;
-	game.PlayerY = 0;
+	game.SetPlayerX(game.Width / 2 - 1);
+	game.SetPlayerY(0);
 }
 
 void fastDrop(Tetris& game)
 {
-	while (!game.isColliding(game.PlayerX, game.PlayerY + 1, game.Player))
+	while (!game.isColliding(game.GetPlayerX(), game.GetPlayerY() + 1, game.Player))
 	{
-		game.PlayerY += 1;
+		game.SetPlayerY(game.GetPlayerY() + 1);
 	}
 	game.PlaceTetronimo();
 	nextShape(game);
@@ -206,13 +220,13 @@ void update(Tetris &game, int currentTime, int& lastDrop, int worldTime, int& la
 	int deltaMs = currentTime - lastDrop;
 	if (deltaMs > 700 - game.level * 70) {
 
-		if (game.isColliding(game.PlayerX, game.PlayerY + 1, game.Player))
+		if (game.isColliding(game.GetPlayerX(), game.GetPlayerY() + 1, game.Player))
 		{
 			game.PlaceTetronimo();
 			nextShape(game);
 		}
 		else {
-			game.PlayerY += 1;
+			game.SetPlayerY(game.GetPlayerY() + 1);
 		}
 		lastDrop = currentTime;
 	}
@@ -242,7 +256,7 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 			{
 				if (game.CanRotate()) {
 					char** player = rotate(game.Player, SHAPE_SIZE);
-					if (!game.isColliding(game.PlayerX, game.PlayerY, player)) {
+					if (!game.isColliding(game.GetPlayerX(), game.GetPlayerY(), player)) {
 						game.DisposePlayer();
 						game.Player = player;
 					}
@@ -263,16 +277,16 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 				}
 				break;
 			case SDLK_RIGHT:
-				if (!game.isColliding(game.PlayerX + 1, game.PlayerY, game.Player))
+				if (!game.isColliding(game.GetPlayerX() + 1, game.GetPlayerY(), game.Player))
 				{
-					game.PlayerX += 1;
+					game.SetPlayerX(game.GetPlayerX() + 1);
 				}
 				break;
 
 			case SDLK_LEFT:
-				if (!game.isColliding(game.PlayerX - 1, game.PlayerY, game.Player))
+				if (!game.isColliding(game.GetPlayerX() - 1, game.GetPlayerY(), game.Player))
 				{
-					game.PlayerX -= 1;
+					game.SetPlayerX(game.GetPlayerX() - 1);
 				}
 				break;
 			case SDLK_p:
@@ -299,9 +313,12 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 		};
 	}
 }
-
-void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
+float lastXXX;
+float lastYYY;
+void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY, float dt)
 {
+	lastXXX = Approach(pivotX, lastXXX, dt * 20);
+	lastYYY = Approach(pivotY, lastYYY, dt  * 20);
 	for (int y = 0; y < SHAPE_SIZE; y++)
 	{
 		for (int x = 0; x < SHAPE_SIZE; x++)
@@ -309,13 +326,14 @@ void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
 			if (shape[y][x] != I_FREE)
 			{
 				if (pivotY - SHAPE_PIVOT + y - 2 >= 0)
-					DrawFullRectangle(screen, PADDING_X + (x + pivotX - SHAPE_PIVOT)* BLOCK_SIZE, PADDING_Y + (pivotY - SHAPE_PIVOT + y - 2) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[shape[y][x]]);
+					DrawFullRectangle(screen, PADDING_X + (x + lastXXX - SHAPE_PIVOT)* BLOCK_SIZE,
+						PADDING_Y + (y - SHAPE_PIVOT - 2) * BLOCK_SIZE + (float)(lastYYY * BLOCK_SIZE), BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[shape[y][x]]);
 			}
 		}
 	}
 }
 
-void render(SDL_Surface* screen, Tetris& game)
+void render(SDL_Surface* screen, Tetris& game, float dt)
 {
 	// 2 fields are hidden (shhh...)
 	for (int y = 2; y < game.Height; y++)
@@ -331,7 +349,7 @@ void render(SDL_Surface* screen, Tetris& game)
 			}
 		}
 	}
-	DrawPlayer(screen, game.Player, game.PlayerX, game.PlayerY);
+	DrawPlayer(screen, game.Player, game.GetPlayerX(), game.GetPlayerY(), dt);
 
 	// top border 
 	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y - BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
@@ -484,7 +502,7 @@ int main(int argc, char **argv) {
 		//background
 		SDL_FillRect(screen, NULL, Colors[I_BLACK]);
 		// game with player
-		render(screen, game);
+		render(screen, game, (currentTime - lastUpdate) * 0.001);
 
 		//HUD(screen);
 		fpsTimer += deltaS;
@@ -509,8 +527,10 @@ int main(int argc, char **argv) {
 			sprintf(stringBuffer, "%.02i FPS | render: %.02d ms", fps, renderTime);
 			DrawString(screen, screen->w - 190, SCREEN_HEIGHT - 55, stringBuffer, charset);
 
-			sprintf(stringBuffer, "%2i,%2i lg: %.02i", game.PlayerX, game.PlayerY, logicUpdates);
+			sprintf(stringBuffer, "%2i,%2i lg: %.02i", game.GetPlayerX(), game.GetPlayerY(), logicUpdates);
 			DrawString(screen, screen->w - 190, SCREEN_HEIGHT - 45, stringBuffer, charset);
+			sprintf(stringBuffer, "%2.0f,%2.0f", lastXXX, lastYYY);
+			DrawString(screen, screen->w - 190, SCREEN_HEIGHT - 25, stringBuffer, charset);
 		}
 
 		bool over = game.IsOver();
