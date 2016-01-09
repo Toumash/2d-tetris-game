@@ -26,8 +26,7 @@ const int BLOCK_SIZE = 20;
 int outLineColor = I_LIONESS;
 
 // determines how much ms to wait between logic updates
-const double LOGIC_STEP_DEFAULT = 1000 / 1;
-const double LOGIC_STEP_DROP = 1000 / 7;
+const double LOGIC_STEP_DEFAULT = 1000 / 10;
 
 
 int Colors[6];
@@ -182,28 +181,39 @@ void nextShape(Tetris& game)
 	game.PlayerY = 0;
 }
 
-void update(Tetris &game, bool& fastDrop)
-{
 
-	if (game.isColliding(game.PlayerX, game.PlayerY + 1,game.Player))
-	{
-		game.PutShape();
-		nextShape(game);
-	}
-	else if (fastDrop) {
-		while (!game.isColliding(game.PlayerX, game.PlayerY + 1,game.Player))
+void update(Tetris &game, bool fastDrop, int currentTime, int& lastDrop,bool& win)
+{
+	if (fastDrop) {
+		while (!game.isColliding(game.PlayerX, game.PlayerY + 1, game.Player))
 		{
 			game.PlayerY += 1;
 		}
 		game.PutShape();
 		nextShape(game);
-		fastDrop = false;
+		lastDrop = currentTime;
+		game.DeleteFullLines();
+		win = game.IsOver();
+		return;
 	}
-	else {
-		game.PlayerY += 1;
+
+	int deltaMs = currentTime - lastDrop;
+	if(deltaMs > 1000)
+	{
+		if (game.isColliding(game.PlayerX, game.PlayerY + 1, game.Player))
+		{
+			game.PutShape();
+			nextShape(game);
+			game.DeleteFullLines();
+			win  = game.IsOver();
+		}
+		else {
+			game.PlayerY += 1;
+		}
+		lastDrop = currentTime;
 	}
 }
-void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, bool& fast_drop)
+void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int currentTime, int& lastDrop,bool& win)
 {
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -235,18 +245,19 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, bool& 
 				break;
 			}
 			case SDLK_DOWN:
-				fast_drop = true;
-				update(game, fast_drop);
+				if (!pause) {
+					update(game, true, currentTime, lastDrop, win);
+				}
 				break;
 			case SDLK_RIGHT:
-				if (!game.isColliding(game.PlayerX + 1, game.PlayerY,game.Player))
+				if (!game.isColliding(game.PlayerX + 1, game.PlayerY, game.Player))
 				{
 					game.PlayerX += 1;
 				}
 				break;
 
 			case SDLK_LEFT:
-				if (!game.isColliding(game.PlayerX - 1, game.PlayerY,game.Player))
+				if (!game.isColliding(game.PlayerX - 1, game.PlayerY, game.Player))
 				{
 					game.PlayerX -= 1;
 				}
@@ -425,11 +436,13 @@ int main(int argc, char **argv) {	//double etiSpeed;
 	double fpsTimer = 0;
 	bool quit = false, pause = false;
 	worldTime = 0;
-	int score = 0;
+	int score = 0, level = 1;
 	long int lastUpdate = SDL_GetTicks();
-	bool fast_drop = false;
 	int updatesPerSecond = 0;
 	int logicUpdates = 0;
+	int lastDrop = lastUpdate;
+	bool over = false;
+
 	while (!quit) {
 		lastTime = SDL_GetTicks();
 		deltaMs = lastTime - currentTime;
@@ -438,11 +451,11 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		currentTime = lastTime;
 		worldTime += deltaS;
 
-		handleInput(game, event, quit, pause, fast_drop);
+		handleInput(game, event, quit, pause, currentTime, lastDrop,over);
 
-		if (!pause) {
+		if (!pause && !over) {
 			while (currentTime - lastUpdate > LOGIC_STEP_DEFAULT) {
-				update(game, fast_drop);
+				update(game,false, currentTime, lastDrop,over);
 				++updatesPerSecond;
 				lastUpdate += LOGIC_STEP_DEFAULT;
 			}
@@ -474,6 +487,10 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		{
 			sprintf(stringBuffer, "PAUSED. Click [P] to resume...");
 			DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, screen->h / 2, stringBuffer, charset);
+		}else if(over)
+		{
+			sprintf(stringBuffer, "Koniec gry. Kliknij T aby zagrac ponownie,co innego by wyjsc");
+			DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, screen->h / 2, stringBuffer, charset);
 		}
 
 		// old not accelerated drawing
@@ -482,6 +499,27 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		// SDL_RenderClear(renderer);
 		SDL_RenderCopy(renderer, scrtex, NULL, NULL);
 		SDL_RenderPresent(renderer);
+
+		if(over)
+		{
+			SDL_WaitEvent(&event);
+			if (event.type == SDL_KEYUP)
+			{
+				if (event.key.keysym.sym == SDLK_t)
+				{
+					over = false;
+					game.DisposePlayer();
+					game.Dispose();
+					game = Tetris(WIDTH, HEIGHT);
+					nextShape(game);
+					// restart game
+				}
+				else
+				{
+					quit = true;
+				}
+			}
+		}
 
 		frames++;
 		renderTime = SDL_GetTicks() - lastTime;

@@ -65,7 +65,32 @@ struct Tetris
 		}
 		return false;
 	}
-
+	void DeleteFullLines()
+	{
+		for (int row = 0; row < Height; row++)
+		{
+			bool full = true;
+			for (int x = 0; x < Width; x++)
+			{
+				if (Matrix[row][x] == I_FREE)
+				{
+					full = false;
+				}
+			}
+			if (full)
+			{
+				//removing process
+				// Moves all the upper lines one row down
+				for (int y = Height - 1; y > 0; y--)
+				{
+					for (int x = 0; x < Width; x++)
+					{
+						Matrix[y][x] = Matrix[y-1][x];
+					}
+				}
+			}
+		}
+	}
 	void PutShape()
 	{
 		for (int y = 0; y < SHAPE_SIZE; y++)
@@ -109,4 +134,16 @@ struct Tetris
 		this->Player = new_shape;
 	}
 
+	bool IsOver() const
+	{
+		bool over = false;
+		for (int x = 0; x < Width;x++)
+		{
+			if(Matrix[2][x] != I_FREE)
+			{
+				over = true;
+			}
+		}
+		return over;
+	}
 };
