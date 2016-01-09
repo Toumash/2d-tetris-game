@@ -10,6 +10,7 @@ struct Tetris
 	int PlayerY;
 	int Width;
 	int Height;
+	bool canRotate;
 
 	Tetris(int width, int height)
 	{
@@ -33,7 +34,7 @@ struct Tetris
 
 	bool isColliding(char** player, int playerX, int playerY) const
 	{
-		for (int y = 0; y < Height;y++)
+		/*for (int y = 0; y < Height;y++)
 		{
 			for (int x = 0; x < Width; x++)
 			{
@@ -42,8 +43,13 @@ struct Tetris
 					return true;
 				}
 			}
-		}
+		}*/
 		return false;
+	}
+
+	void PutShape()
+	{
+		
 	}
 
 	void DisposePlayer() const
@@ -61,5 +67,10 @@ struct Tetris
 			free(Matrix[i]);
 		}
 		free(Matrix);
+	}
+
+	bool CanRotate() const
+	{
+		return this->canRotate;
 	}
 };

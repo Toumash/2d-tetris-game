@@ -26,6 +26,12 @@ const int BLOCK_SIZE = 20;
 int outLineColor = I_LIONESS;
 
 
+
+// determines how much ms to wait between logic updates
+const double LOGIC_STEP_DEFAULT = 1000 / 1;
+const double LOGIC_STEP_DROP = 1000 / 10;
+
+
 int Colors[6];
 const int PADDING_X = 200;
 const int PADDING_Y = 20;
@@ -107,7 +113,7 @@ void DrawRectangle(SDL_Surface *screen, int x, int y, int w, int h, Uint32 outli
 	DrawLine(screen, x, y + h - 1, w, 1, 0, outlineColor);
 };
 
-void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause)
+void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, double& logic_step)
 {
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -115,21 +121,29 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause)
 			if (event.key.keysym.sym == SDLK_ESCAPE) quit = true;
 			break;
 		case SDL_KEYUP:
+
 			switch (event.key.keysym.sym)
 			{
+				// rotation
 			case SDLK_UP:case SDLK_SPACE:
-			{ // rotate block
-				char** player = rotate(game.Player, SHAPE_SIZE);
-				game.DisposePlayer();
-				game.Player = player;
+			{
+				if (game.CanRotate()) {
+					char** player = rotate(game.Player, SHAPE_SIZE);
+					game.DisposePlayer();
+					game.Player = player;
+				}
 				break;
 			}
+			case SDLK_DOWN:
+				logic_step = LOGIC_STEP_DROP;
+				break;
 			case SDLK_p:
 				pause = !pause;
 				break;
 			default:
 				break;
 			}
+
 			break;
 		case SDL_QUIT:
 			quit = true;
@@ -138,13 +152,18 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause)
 	}
 }
 
-void update(Tetris &game, double deltaTime)
+void update(Tetris &game, double& logic_step)
 {
 
-
-
-
-
+	if (game.isColliding(game.Player, game.PlayerX, game.PlayerY + 1))
+	{
+		game.PutShape();
+		logic_step = LOGIC_STEP_DEFAULT;
+	}
+	else
+	{
+		game.PlayerY += 1;
+	}
 }
 
 void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
@@ -160,12 +179,13 @@ void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
 		}
 	}
 }
+
 void render(SDL_Surface* screen, Tetris& game)
 {
 	// top border 
 	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y - BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
 	// left
-	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y,BLOCK_SIZE, (game.Height + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
+	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y, BLOCK_SIZE, (game.Height + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
 	// bottom
 	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y + game.Height * BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
 	// right
@@ -289,7 +309,6 @@ extern "C"
 int main(int argc, char **argv) {	//double etiSpeed;
 	SDL_Event event;
 	SDL_Surface *screen, *charset;
-	//SDL_Surface *eti;
 	SDL_Texture *scrtex;
 	SDL_Window *window;
 	SDL_Renderer *renderer;
@@ -353,7 +372,9 @@ int main(int argc, char **argv) {	//double etiSpeed;
 	const int HEIGHT = 22;
 	Tetris game = Tetris(WIDTH, HEIGHT);
 	srand(time(NULL));
-	game.Player = getShape(rand() % 6);
+	int piece = rand() % 6;
+	game.Player = getShape(piece);
+	game.canRotate = piece != S_Square;
 	game.PlayerX = 3;
 	game.PlayerY = 10;
 
@@ -366,6 +387,9 @@ int main(int argc, char **argv) {	//double etiSpeed;
 	bool quit = false, pause = false;
 	worldTime = 0;
 
+	double logic_step = LOGIC_STEP_DEFAULT;
+	long int lastUpdate = SDL_GetTicks();
+
 	while (!quit) {
 		lastTime = SDL_GetTicks();
 		deltaMs = lastTime - currentTime;
@@ -374,10 +398,14 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		currentTime = lastTime;
 		worldTime += deltaS;
 
-		handleInput(game, event, quit, pause);
-
+		handleInput(game, event, quit, pause, logic_step);
+		int updatesPerFrame = 0;
 		if (!pause) {
-			update(game, deltaMs);
+			while (SDL_GetTicks() - lastUpdate > logic_step) {
+				update(game, logic_step);
+				updatesPerFrame++;
+				lastUpdate += logic_step;
+			}
 		}
 
 		//background
@@ -396,7 +424,7 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		DrawFullRectangle(screen, 4, 4, SCREEN_WIDTH - 8, 36, Colors[I_RED], Colors[I_BLUE]);
 		sprintf(stringBuffer, "%.02i FPS | render: %.02d ms", fps, renderTime);
 		DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, 10, stringBuffer, charset);
-		sprintf(stringBuffer, "DEBUG INFO X");
+		sprintf(stringBuffer, "Logic updates: %.02i", updatesPerFrame);
 		DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, 26, stringBuffer, charset);
 		if (pause)
 		{
