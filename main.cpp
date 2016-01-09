@@ -17,7 +17,7 @@ const int FPS_LIMIT = 10;
 #include "main.h"
 #include <ctime>
 
-const int LEVEL_DURATION = 20;
+const int LEVEL_DURATION = 10;
 const int MAX_LEVEL = 10;
 
 const int FRAME_TIME = 1000 / FPS_LIMIT;
@@ -193,19 +193,18 @@ void fastDrop(Tetris& game)
 	game.PlaceTetronimo();
 	nextShape(game);
 }
+
 void update(Tetris &game, int currentTime, int& lastDrop, int worldTime, int& lastLevelTime)
 {
-	int deltaMs = currentTime - lastDrop;
-	if (deltaMs > 1000)
+
+	if (worldTime - lastLevelTime > LEVEL_DURATION && game.level < MAX_LEVEL)
 	{
-		if (worldTime - lastLevelTime > LEVEL_DURATION && game.level < MAX_LEVEL)
-		{
-			game.level += 1;
-			lastLevelTime = worldTime;
-		}
+		game.level += 1;
+		lastLevelTime = worldTime;
 	}
 
-	if (deltaMs > 1000 - game.level * 50) {
+	int deltaMs = currentTime - lastDrop;
+	if (deltaMs > 700 - game.level * 70) {
 
 		if (game.isColliding(game.PlayerX, game.PlayerY + 1, game.Player))
 		{
@@ -218,6 +217,7 @@ void update(Tetris &game, int currentTime, int& lastDrop, int worldTime, int& la
 		lastDrop = currentTime;
 	}
 }
+
 void restartGame(Tetris& game)
 {
 	game.DisposePlayer();
@@ -225,6 +225,7 @@ void restartGame(Tetris& game)
 	game = Tetris(game.Width, game.Height);
 	nextShape(game);
 }
+
 void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int currentTime, int& lastDrop, bool& debug, int& lastLevelTime)
 {
 	while (SDL_PollEvent(&event)) {
