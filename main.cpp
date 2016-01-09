@@ -17,18 +17,18 @@ const int FPS_LIMIT = 50;
 #include "main.h"
 #include <ctime>
 
-const int LEVEL_DURATION = 10;
+const int LEVEL_DURATION = 20;
 const int MAX_LEVEL = 10;
 
 const int FRAME_TIME = 1000 / FPS_LIMIT;
 const int SCREEN_WIDTH = 640;
 const int  SCREEN_HEIGHT = 480;
-const bool FULLSCREEN = true;
+const bool FULLSCREEN = false;
 const int BLOCK_SIZE = 20;
 int outLineColor = I_LIONESS;
 
 // determines how much ms to wait between logic updates
-const double LOGIC_STEP_DEFAULT = 1000 / 10;
+const double LOGIC_STEP = 1000 / 30;
 
 
 int Colors[6];
@@ -103,8 +103,6 @@ void DrawPixel(SDL_Surface *surface, int x, int y, Uint32 color);
 void DrawLine(SDL_Surface *screen, int x, int y, int l, int dx, int dy, Uint32 color);
 void DrawFullRectangle(SDL_Surface *screen, int x, int y, int w, int h, Uint32 outlineColor, Uint32 fillColor);
 void DrawRectangle(struct SDL_Surface *screen, int x, int y, int w, int h, Uint32 outlineColor);
-void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY);
-void render(SDL_Surface* screen, Tetris& game);
 char** getShape(int index);
 char** rotate(char** array, int size);
 void nextShape(Tetris& game);
@@ -160,6 +158,8 @@ void DrawSurface(SDL_Surface *screen, SDL_Surface *sprite, int x, int y) {
 void DrawPixel(SDL_Surface *surface, int x, int y, Uint32 color) {
 	int bpp = surface->format->BytesPerPixel;
 	Uint8 *p = (Uint8 *)surface->pixels + y * surface->pitch + x * bpp;
+
+
 	*(Uint32 *)p = color;
 };
 
@@ -197,18 +197,10 @@ void nextShape(Tetris& game)
 	game.SetPlayerX(game.Width / 2 - 1);
 	game.SetPlayerY(0);
 }
+float lastXXX;
+float lastYYY;
 
-void fastDrop(Tetris& game)
-{
-	while (!game.isColliding(game.GetPlayerX(), game.GetPlayerY() + 1, game.Player))
-	{
-		game.SetPlayerY(game.GetPlayerY() + 1);
-	}
-	game.PlaceTetronimo();
-	nextShape(game);
-}
-
-void update(Tetris &game, int currentTime, int& lastDrop, int worldTime, int& lastLevelTime)
+void update(Tetris &game, int currentTime, int& lastDrop, int worldTime, int& lastLevelTime, bool& fastDrop)
 {
 
 	if (worldTime - lastLevelTime > LEVEL_DURATION && game.level < MAX_LEVEL)
@@ -218,12 +210,17 @@ void update(Tetris &game, int currentTime, int& lastDrop, int worldTime, int& la
 	}
 
 	int deltaMs = currentTime - lastDrop;
-	if (deltaMs > 700 - game.level * 70) {
+	int delay = 800 - game.level * 70;
+	if (fastDrop) delay = 0;
+	if (deltaMs > delay) {
 
 		if (game.isColliding(game.GetPlayerX(), game.GetPlayerY() + 1, game.Player))
 		{
 			game.PlaceTetronimo();
 			nextShape(game);
+			lastXXX = game.GetPlayerX();
+			lastYYY = game.GetPlayerY();
+			fastDrop = false;
 		}
 		else {
 			game.SetPlayerY(game.GetPlayerY() + 1);
@@ -240,7 +237,7 @@ void restartGame(Tetris& game)
 	nextShape(game);
 }
 
-void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int currentTime, int& lastDrop, bool& debug, int& lastLevelTime)
+void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int currentTime, int& lastDrop, bool& debug, int& lastLevelTime, bool& fastDrop)
 {
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -272,9 +269,7 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 				break;
 			}
 			case SDLK_DOWN:
-				if (!pause) {
-					fastDrop(game);
-				}
+				fastDrop = true;
 				break;
 			case SDLK_RIGHT:
 				if (!game.isColliding(game.GetPlayerX() + 1, game.GetPlayerY(), game.Player))
@@ -296,8 +291,10 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 				debug = !debug;
 				break;
 			case SDLK_w:
-				game.level += 1;
-				lastLevelTime = game.worldTime;
+				if (game.level < MAX_LEVEL) {
+					game.level += 1;
+					lastLevelTime = game.worldTime;
+				}
 				break;
 			case SDLK_n:
 				restartGame(game);
@@ -313,19 +310,18 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 		};
 	}
 }
-float lastXXX;
-float lastYYY;
-void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY, float dt)
+
+void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY, float dt, bool fastDrop)
 {
-	lastXXX = Approach(pivotX, lastXXX, dt * 20);
-	lastYYY = Approach(pivotY, lastYYY, dt  * 20);
+	lastXXX = Approach(pivotX, lastXXX, dt * (fastDrop ? 2 : 1) * 15);
+	lastYYY = Approach(pivotY, lastYYY, dt * (fastDrop ? 2 : 1) * 15);
 	for (int y = 0; y < SHAPE_SIZE; y++)
 	{
 		for (int x = 0; x < SHAPE_SIZE; x++)
 		{
 			if (shape[y][x] != I_FREE)
 			{
-				if (pivotY - SHAPE_PIVOT + y - 2 >= 0)
+				if (lastYYY - SHAPE_PIVOT + y - 2 >= 0)
 					DrawFullRectangle(screen, PADDING_X + (x + lastXXX - SHAPE_PIVOT)* BLOCK_SIZE,
 						PADDING_Y + (y - SHAPE_PIVOT - 2) * BLOCK_SIZE + (float)(lastYYY * BLOCK_SIZE), BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[shape[y][x]]);
 			}
@@ -333,7 +329,7 @@ void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY, float
 	}
 }
 
-void render(SDL_Surface* screen, Tetris& game, float dt)
+void render(SDL_Surface* screen, Tetris& game, float dt, bool fastDrop)
 {
 	// 2 fields are hidden (shhh...)
 	for (int y = 2; y < game.Height; y++)
@@ -349,7 +345,7 @@ void render(SDL_Surface* screen, Tetris& game, float dt)
 			}
 		}
 	}
-	DrawPlayer(screen, game.Player, game.GetPlayerX(), game.GetPlayerY(), dt);
+	DrawPlayer(screen, game.Player, game.GetPlayerX(), game.GetPlayerY(), dt, fastDrop);
 
 	// top border 
 	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y - BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
@@ -480,7 +476,7 @@ int main(int argc, char **argv) {
 
 	bool debug = false;
 	int lastLevelTime = 0;
-
+	bool fastDrop = false;
 	while (!quit) {
 		lastTime = SDL_GetTicks();
 		deltaMs = lastTime - currentTime;
@@ -489,20 +485,20 @@ int main(int argc, char **argv) {
 		currentTime = lastTime;
 		game.worldTime += deltaS;
 
-		handleInput(game, event, quit, pause, currentTime, lastDrop, debug, lastLevelTime);
+		handleInput(game, event, quit, pause, currentTime, lastDrop, debug, lastLevelTime, fastDrop);
 
 		if (!pause) {
-			while (currentTime - lastUpdate > LOGIC_STEP_DEFAULT) {
-				update(game, currentTime, lastDrop, game.worldTime, lastLevelTime);
+			while (currentTime - lastUpdate > LOGIC_STEP) {
+				update(game, currentTime, lastDrop, game.worldTime, lastLevelTime, fastDrop);
 				++updatesPerSecond;
-				lastUpdate += LOGIC_STEP_DEFAULT;
+				lastUpdate += LOGIC_STEP;
 			}
 		}
 
 		//background
 		SDL_FillRect(screen, NULL, Colors[I_BLACK]);
 		// game with player
-		render(screen, game, (currentTime - lastUpdate) * 0.001);
+		render(screen, game, (currentTime - lastUpdate) * 0.001,fastDrop);
 
 		//HUD(screen);
 		fpsTimer += deltaS;
