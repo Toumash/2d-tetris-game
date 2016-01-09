@@ -11,7 +11,7 @@ extern "C" {
 #include"./sdl/include/SDL_main.h"
 //#endif
 }
-const int FPS_LIMIT = 50;
+const int FPS_LIMIT = 10;
 #include <SDL.h>
 #include "Tetris.cpp"
 #include "main.h"
@@ -25,8 +25,6 @@ const bool FULLSCREEN = false;
 const int BLOCK_SIZE = 20;
 int outLineColor = I_LIONESS;
 
-
-
 // determines how much ms to wait between logic updates
 const double LOGIC_STEP_DEFAULT = 1000 / 1;
 const double LOGIC_STEP_DROP = 1000 / 7;
@@ -35,6 +33,67 @@ const double LOGIC_STEP_DROP = 1000 / 7;
 int Colors[6];
 const int PADDING_X = 200;
 const int PADDING_Y = 20;
+
+const int S_I = 0;
+const int S_Square = 1;
+const int S_Z = 2;
+const int S_RZ = 3;
+const int S_L = 4;
+const int S_RL = 5;
+const int S_T = 6;
+const int S_AMOUNT = 7;
+
+char Pieces[S_AMOUNT][SHAPE_SIZE][SHAPE_SIZE] = {
+	{ // blue I
+		{ 0,0,0,0,0 },
+		{ 0,0,I_BLUE,0,0 },
+		{ 0,0,I_BLUE,0,0 },
+		{ 0,0,I_BLUE,0,0 },
+		{ 0,0,I_BLUE,0,0 }
+	}
+	,{// red cube
+		{ 0,0,0,0,0 },
+		{ 0,0,0,0,0 },
+		{ 0,0,I_RED,I_RED,0 },
+		{ 0,0,I_RED,I_RED,0 },
+		{ 0,0,0,0,0 }
+	}
+	,{// green Z
+		{ 0,0,0,0,0 },
+		{ 0,I_GREEN,I_GREEN,0,0 },
+		{ 0,0,I_GREEN,I_GREEN,0 },
+		{ 0,0,0,0,0 },
+		{ 0,0,0,0,0 }
+	}
+	,{ // reverse Z
+		{ 0,0,0,0,0 },
+		{ 0,0,I_GREEN,I_GREEN,0 },
+		{ 0,I_GREEN,I_GREEN,0,0 },
+		{ 0,0,0,0,0 },
+		{ 0,0,0,0,0 }
+	},
+	{ // white L
+		{ 0,0,0,0,0 },
+		{ 0,0,I_WHITE,0,0 },
+		{ 0,0,I_WHITE,0,0 },
+		{ 0,0,I_WHITE,I_WHITE,0 },
+		{ 0,0,0,0,0 },
+	},
+	{ // reverse L
+		{ 0,0,0,0,0 },
+		{ 0,0,I_WHITE,0,0 },
+		{ 0,0,I_WHITE,0,0 },
+		{ 0,I_WHITE,I_WHITE,0,0 },
+		{ 0,0,0,0,0 },
+	},{
+		//black t
+		{ 0,0,0,0,0 },
+		{ 0,0,I_LIONESS,0,0 },
+		{ 0,I_LIONESS,I_LIONESS,I_LIONESS,0 },
+		{ 0,0,0,0,0 },
+		{ 0,0,0,0,0 }
+	}
+};
 
 void render(SDL_Surface* screen, Tetris& game);
 void DrawString(SDL_Surface *screen, int x, int y, const char *text, SDL_Surface *charset);
@@ -113,7 +172,38 @@ void DrawRectangle(SDL_Surface *screen, int x, int y, int w, int h, Uint32 outli
 	DrawLine(screen, x, y + h - 1, w, 1, 0, outlineColor);
 };
 
-void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, double& logic_step)
+void nextShape(Tetris& game)
+{
+	int piece = rand() % S_AMOUNT;
+	char** newShape = getShape(piece);
+	game.NextShape(newShape);
+	game.canRotate = piece != S_Square;
+	game.PlayerX = game.Width / 2 - 1;
+	game.PlayerY = 0;
+}
+
+void update(Tetris &game, bool& fastDrop)
+{
+
+	if (game.isColliding(game.PlayerX, game.PlayerY + 1,game.Player))
+	{
+		game.PutShape();
+		nextShape(game);
+	}
+	else if (fastDrop) {
+		while (!game.isColliding(game.PlayerX, game.PlayerY + 1,game.Player))
+		{
+			game.PlayerY += 1;
+		}
+		game.PutShape();
+		nextShape(game);
+		fastDrop = false;
+	}
+	else {
+		game.PlayerY += 1;
+	}
+}
+void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, bool& fast_drop)
 {
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -129,13 +219,37 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, double
 			{
 				if (game.CanRotate()) {
 					char** player = rotate(game.Player, SHAPE_SIZE);
-					game.DisposePlayer();
-					game.Player = player;
+					if (!game.isColliding(game.PlayerX, game.PlayerY, player)) {
+						game.DisposePlayer();
+						game.Player = player;
+					}
+					else
+					{
+						for (int i = 0; i < SHAPE_SIZE; i++)
+						{
+							free(player[i]);
+						}
+						free(player);
+					}
 				}
 				break;
 			}
 			case SDLK_DOWN:
-				logic_step = LOGIC_STEP_DROP;
+				fast_drop = true;
+				update(game, fast_drop);
+				break;
+			case SDLK_RIGHT:
+				if (!game.isColliding(game.PlayerX + 1, game.PlayerY,game.Player))
+				{
+					game.PlayerX += 1;
+				}
+				break;
+
+			case SDLK_LEFT:
+				if (!game.isColliding(game.PlayerX - 1, game.PlayerY,game.Player))
+				{
+					game.PlayerX -= 1;
+				}
 				break;
 			case SDLK_p:
 				pause = !pause;
@@ -152,19 +266,6 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, double
 	}
 }
 
-void update(Tetris &game, double& logic_step)
-{
-
-	if (game.isColliding(game.PlayerX, game.PlayerY + 1))
-	{
-		game.PutShape();
-		logic_step = LOGIC_STEP_DEFAULT;
-	}
-	else
-	{
-		game.PlayerY += 1;
-	}
-}
 
 void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
 {
@@ -174,7 +275,8 @@ void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
 		{
 			if (shape[y][x] != I_FREE)
 			{
-				DrawFullRectangle(screen, PADDING_X + (x + pivotX - SHAPE_PIVOT)* BLOCK_SIZE, PADDING_Y + (y + pivotY - SHAPE_PIVOT) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[shape[y][x]]);
+				if (pivotY - SHAPE_PIVOT + y - 2 >= 0)
+					DrawFullRectangle(screen, PADDING_X + (x + pivotX - SHAPE_PIVOT)* BLOCK_SIZE, PADDING_Y + (pivotY - SHAPE_PIVOT + y - 2) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[shape[y][x]]);
 			}
 		}
 	}
@@ -182,15 +284,6 @@ void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
 
 void render(SDL_Surface* screen, Tetris& game)
 {
-	// top border 
-	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y - BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
-	// left
-	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y, BLOCK_SIZE, (game.Height + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
-	// bottom
-	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y + game.Height * BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
-	// right
-	DrawFullRectangle(screen, PADDING_X + game.Width * BLOCK_SIZE, PADDING_Y, BLOCK_SIZE, (game.Height + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
-
 	// 2 fields are hidden (shhh...)
 	for (int y = 2; y < game.Height; y++)
 	{
@@ -206,71 +299,19 @@ void render(SDL_Surface* screen, Tetris& game)
 		}
 	}
 	DrawPlayer(screen, game.Player, game.PlayerX, game.PlayerY);
+
+	// top border 
+	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y - BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
+	// left
+	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y, BLOCK_SIZE, (game.Height - 2 + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
+	// bottom
+	DrawFullRectangle(screen, PADDING_X - BLOCK_SIZE, PADDING_Y + (game.Height - 2) * BLOCK_SIZE, (game.Width + 2) * BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
+	// right
+	DrawFullRectangle(screen, PADDING_X + game.Width * BLOCK_SIZE, PADDING_Y, BLOCK_SIZE, (game.Height - 2 + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
 }
 
 char stringBuffer[128];
 
-
-const int S_I = 0;
-const int S_Square = 1;
-const int S_Z = 2;
-const int S_RZ = 3;
-const int S_L = 4;
-const int S_RL = 5;
-const int S_T = 6;
-const int S_AMOUNT = 7;
-
-char Pieces[7][5][5] = {
-		{ // blue I
-			{0,0,0,0,0},
-			{0,0,I_BLUE,0,0},
-			{0,0,I_BLUE,0,0},
-			{0,0,I_BLUE,0,0},
-			{0,0,I_BLUE,0,0}
-		}
-	,{// red cube
-		{0,0,0,0,0},
-		{0,0,0,0,0},
-		{0,0,I_RED,I_RED,0},
-		{0,0,I_RED,I_RED,0},
-		{0,0,0,0,0}
-	}
-	,{// green Z
-		{0,0,0,0,0},
-		{0,I_GREEN,I_GREEN,0,0},
-		{0,0,I_GREEN,I_GREEN,0},
-		{0,0,0,0,0 },
-		{0,0,0,0,0}
-	}
-	,{ // reverse Z
-		{0,0,0,0,0},
-		{0,0,I_GREEN,I_GREEN,0},
-		{0,I_GREEN,I_GREEN,0,0},
-		{0,0,0,0,0},
-		{0,0,0,0,0}
-	},
-{ // white L
-	{0,0,0,0,0},
-	{ 0,0,I_WHITE,0,0 },
-	{ 0,0,I_WHITE,0,0 },
-	{ 0,0,I_WHITE,I_WHITE,0 },
-	{ 0,0,0,0,0 },
-},
-{ // reverse L
-	{ 0,0,0,0,0 },
-	{ 0,0,I_WHITE,0,0 },
-	{ 0,0,I_WHITE,0,0 },
-	{ 0,I_WHITE,I_WHITE,0,0 },
-	{ 0,0,0,0,0 },
-},{
-	//black t
-	{0,0,0,0,0},
-	{0,0,I_LIONESS,0,0},
-	{0,I_LIONESS,I_LIONESS,I_LIONESS,0},
-	{0,0,0,0,0},
-	{0,0,0,0,0}
-}
-};
 
 char** rotate(char** array, int size)
 {
@@ -374,11 +415,7 @@ int main(int argc, char **argv) {	//double etiSpeed;
 	const int HEIGHT = 22;
 	Tetris game = Tetris(WIDTH, HEIGHT);
 	srand(time(NULL));
-	int piece = rand() % S_AMOUNT;
-	game.Player = getShape(piece);
-	game.canRotate = piece != S_Square;
-	game.PlayerX = 3;
-	game.PlayerY = 10;
+	nextShape(game);
 
 	Uint32 currentTime = SDL_GetTicks(), lastTime;
 	double deltaS, worldTime;
@@ -389,9 +426,10 @@ int main(int argc, char **argv) {	//double etiSpeed;
 	bool quit = false, pause = false;
 	worldTime = 0;
 	int score = 0;
-	double logic_step = LOGIC_STEP_DEFAULT;
 	long int lastUpdate = SDL_GetTicks();
-
+	bool fast_drop = false;
+	int updatesPerSecond = 0;
+	int logicUpdates = 0;
 	while (!quit) {
 		lastTime = SDL_GetTicks();
 		deltaMs = lastTime - currentTime;
@@ -400,19 +438,18 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		currentTime = lastTime;
 		worldTime += deltaS;
 
-		handleInput(game, event, quit, pause, logic_step);
-		int updatesPerFrame = 0;
+		handleInput(game, event, quit, pause, fast_drop);
+
 		if (!pause) {
-			while (currentTime - lastUpdate > logic_step) {
-				update(game, logic_step);
-				updatesPerFrame++;
-				lastUpdate += logic_step;
+			while (currentTime - lastUpdate > LOGIC_STEP_DEFAULT) {
+				update(game, fast_drop);
+				++updatesPerSecond;
+				lastUpdate += LOGIC_STEP_DEFAULT;
 			}
 		}
 
 		//background
 		SDL_FillRect(screen, NULL, Colors[I_BLACK]);
-
 		// game with player
 		render(screen, game);
 
@@ -422,12 +459,17 @@ int main(int argc, char **argv) {	//double etiSpeed;
 			fps = frames;
 			frames = 0;
 			fpsTimer -= 1;
+
+			logicUpdates = updatesPerSecond;
+			updatesPerSecond = 0;
 		};
+
 		DrawFullRectangle(screen, SCREEN_WIDTH - 200, 4, 190, 50, Colors[I_RED], Colors[I_BLUE]);
 		sprintf(stringBuffer, "%.02i FPS | render: %.02d ms", fps, renderTime);
-		DrawString(screen, screen->w -190, 10, stringBuffer, charset);
-		sprintf(stringBuffer, "x: %02i y:%02i Logic updates: %.02i",game.PlayerX, game.PlayerY, updatesPerFrame);
-		DrawString(screen, screen->w - 190 , 26, stringBuffer, charset);
+		DrawString(screen, screen->w - 190, 10, stringBuffer, charset);
+		sprintf(stringBuffer, "%2i,%2i lg: %.02i", game.PlayerX, game.PlayerY, logicUpdates);
+		DrawString(screen, screen->w - 190, 26, stringBuffer, charset);
+
 		if (pause)
 		{
 			sprintf(stringBuffer, "PAUSED. Click [P] to resume...");

@@ -1,6 +1,6 @@
 #include <cstdlib>
 #include "main.h"
-
+#pragma once
 
 struct Tetris
 {
@@ -18,10 +18,13 @@ struct Tetris
 		this->PlayerY = 0;
 		this->Width = width;
 		this->Height = height;
-		Matrix = new char*[height];
+
+		this->Player = NULL;
+		this->canRotate = true;
+		Matrix = (char**)malloc(height * sizeof(char*));// new char*[height];
 		for (int i = 0; i < height; i++)
 		{
-			Matrix[i] = new char[width];
+			Matrix[i] = (char*)malloc(width* sizeof(char));// new char[width];
 		}
 		for (int y = 0; y < Height; y++)
 		{
@@ -32,14 +35,11 @@ struct Tetris
 		}
 	}
 
-	bool isColliding(int dstX, int dstY) const
+	bool isColliding(int dstX, int dstY,char** player) const
 	{
-		char** player = this->Player;
 		char** matrix = this->Matrix;
 		int height = this->Height;
 		int width = this->Width;
-
-
 
 		for (int y = 0; y < SHAPE_SIZE; y++)
 		{
@@ -54,9 +54,11 @@ struct Tetris
 						return true;
 					}
 					// checks agains other fields
-					if (matrix[dstY - SHAPE_PIVOT + y][dstX - SHAPE_PIVOT + x] != I_FREE)
-					{
-						return true;
+					if (dstY - SHAPE_PIVOT + y >= 2 && dstX - SHAPE_PIVOT + x >= 0) {
+						if (matrix[dstY - SHAPE_PIVOT + y][dstX - SHAPE_PIVOT + x] != I_FREE)
+						{
+							return true;
+						}
 					}
 				}
 			}
@@ -66,18 +68,28 @@ struct Tetris
 
 	void PutShape()
 	{
-
-	}
-
-	void DisposePlayer() const
-	{
-		for (int i = 0; i < SHAPE_SIZE; i++)
+		for (int y = 0; y < SHAPE_SIZE; y++)
 		{
-			free(Player[i]);
+			for (int x = 0; x < SHAPE_SIZE; x++)
+			{
+				if (PlayerY - SHAPE_PIVOT + y < Height && Player[y][x] != I_FREE) {
+					Matrix[PlayerY - SHAPE_PIVOT + y][PlayerX - SHAPE_PIVOT + x] = Player[y][x];
+				}
+			}
 		}
-		free(Player);
 	}
-	void Dispose() const
+
+	void DisposePlayer()
+	{
+		if (Player != NULL) {
+			for (int i = 0; i < SHAPE_SIZE; i++)
+			{
+				free(Player[i]);
+			}
+			free(Player);
+		}
+	}
+	void Dispose()
 	{
 		for (int i = 0; i < Height; i++)
 		{
@@ -90,4 +102,11 @@ struct Tetris
 	{
 		return this->canRotate;
 	}
+
+	void NextShape(char** new_shape)
+	{
+		DisposePlayer();
+		this->Player = new_shape;
+	}
+
 };
