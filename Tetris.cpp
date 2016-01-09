@@ -23,33 +23,50 @@ struct Tetris
 		{
 			Matrix[i] = new char[width];
 		}
-		for (int y = 2; y < Height; y++)
+		for (int y = 0; y < Height; y++)
 		{
-			for (int x = 0; x <Width; x++)
+			for (int x = 0; x < Width; x++)
 			{
 				Matrix[y][x] = I_FREE;
 			}
 		}
 	}
 
-	bool isColliding(char** player, int playerX, int playerY) const
+	bool isColliding(int dstX, int dstY) const
 	{
-		/*for (int y = 0; y < Height;y++)
+		char** player = this->Player;
+		char** matrix = this->Matrix;
+		int height = this->Height;
+		int width = this->Width;
+
+
+
+		for (int y = 0; y < SHAPE_SIZE; y++)
 		{
-			for (int x = 0; x < Width; x++)
+			for (int x = 0; x < SHAPE_SIZE; x++)
 			{
-				if(player[y][x] != I_FREE && Matrix[SHAPE_PIVOT - y + playerY][SHAPE_PIVOT - x + playerX] != I_FREE)
-				{
-					return true;
+				if (player[y][x] != I_FREE) {
+					// checks agains bounds (canvas)
+					if ((y - SHAPE_PIVOT + dstY >= height)
+						|| (x - SHAPE_PIVOT + dstX >= width)
+						|| (x - SHAPE_PIVOT + dstX < 0))
+					{
+						return true;
+					}
+					// checks agains other fields
+					if (matrix[dstY - SHAPE_PIVOT + y][dstX - SHAPE_PIVOT + x] != I_FREE)
+					{
+						return true;
+					}
 				}
 			}
-		}*/
+		}
 		return false;
 	}
 
 	void PutShape()
 	{
-		
+
 	}
 
 	void DisposePlayer() const

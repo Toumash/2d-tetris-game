@@ -11,7 +11,7 @@ extern "C" {
 #include"./sdl/include/SDL_main.h"
 //#endif
 }
-const int FPS_LIMIT = 30;
+const int FPS_LIMIT = 50;
 #include <SDL.h>
 #include "Tetris.cpp"
 #include "main.h"
@@ -29,7 +29,7 @@ int outLineColor = I_LIONESS;
 
 // determines how much ms to wait between logic updates
 const double LOGIC_STEP_DEFAULT = 1000 / 1;
-const double LOGIC_STEP_DROP = 1000 / 10;
+const double LOGIC_STEP_DROP = 1000 / 7;
 
 
 int Colors[6];
@@ -155,7 +155,7 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, double
 void update(Tetris &game, double& logic_step)
 {
 
-	if (game.isColliding(game.Player, game.PlayerX, game.PlayerY + 1))
+	if (game.isColliding(game.PlayerX, game.PlayerY + 1))
 	{
 		game.PutShape();
 		logic_step = LOGIC_STEP_DEFAULT;
@@ -174,7 +174,7 @@ void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
 		{
 			if (shape[y][x] != I_FREE)
 			{
-				DrawFullRectangle(screen, PADDING_X + (x + pivotX - SHAPE_PIVOT)* BLOCK_SIZE, PADDING_Y + (y - 2 + pivotY - SHAPE_PIVOT) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[shape[y][x]]);
+				DrawFullRectangle(screen, PADDING_X + (x + pivotX - SHAPE_PIVOT)* BLOCK_SIZE, PADDING_Y + (y + pivotY - SHAPE_PIVOT) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE, outLineColor, Colors[shape[y][x]]);
 			}
 		}
 	}
@@ -218,6 +218,8 @@ const int S_RZ = 3;
 const int S_L = 4;
 const int S_RL = 5;
 const int S_T = 6;
+const int S_AMOUNT = 7;
+
 char Pieces[7][5][5] = {
 		{ // blue I
 			{0,0,0,0,0},
@@ -367,12 +369,12 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		};
 		SDL_SetColorKey(charset, true, 0x000000);
 	}
-
+	// standard tetris dimensions
 	const int WIDTH = 10;
 	const int HEIGHT = 22;
 	Tetris game = Tetris(WIDTH, HEIGHT);
 	srand(time(NULL));
-	int piece = rand() % 6;
+	int piece = rand() % S_AMOUNT;
 	game.Player = getShape(piece);
 	game.canRotate = piece != S_Square;
 	game.PlayerX = 3;
@@ -386,7 +388,7 @@ int main(int argc, char **argv) {	//double etiSpeed;
 	double fpsTimer = 0;
 	bool quit = false, pause = false;
 	worldTime = 0;
-
+	int score = 0;
 	double logic_step = LOGIC_STEP_DEFAULT;
 	long int lastUpdate = SDL_GetTicks();
 
@@ -401,7 +403,7 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		handleInput(game, event, quit, pause, logic_step);
 		int updatesPerFrame = 0;
 		if (!pause) {
-			while (SDL_GetTicks() - lastUpdate > logic_step) {
+			while (currentTime - lastUpdate > logic_step) {
 				update(game, logic_step);
 				updatesPerFrame++;
 				lastUpdate += logic_step;
@@ -421,11 +423,11 @@ int main(int argc, char **argv) {	//double etiSpeed;
 			frames = 0;
 			fpsTimer -= 1;
 		};
-		DrawFullRectangle(screen, 4, 4, SCREEN_WIDTH - 8, 36, Colors[I_RED], Colors[I_BLUE]);
+		DrawFullRectangle(screen, SCREEN_WIDTH - 200, 4, 190, 50, Colors[I_RED], Colors[I_BLUE]);
 		sprintf(stringBuffer, "%.02i FPS | render: %.02d ms", fps, renderTime);
-		DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, 10, stringBuffer, charset);
-		sprintf(stringBuffer, "Logic updates: %.02i", updatesPerFrame);
-		DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, 26, stringBuffer, charset);
+		DrawString(screen, screen->w -190, 10, stringBuffer, charset);
+		sprintf(stringBuffer, "x: %02i y:%02i Logic updates: %.02i",game.PlayerX, game.PlayerY, updatesPerFrame);
+		DrawString(screen, screen->w - 190 , 26, stringBuffer, charset);
 		if (pause)
 		{
 			sprintf(stringBuffer, "PAUSED. Click [P] to resume...");
