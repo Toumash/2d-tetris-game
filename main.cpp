@@ -23,7 +23,7 @@ const int MAX_LEVEL = 10;
 const int FRAME_TIME = 1000 / FPS_LIMIT;
 const int SCREEN_WIDTH = 640;
 const int  SCREEN_HEIGHT = 480;
-const bool FULLSCREEN = false;
+const bool FULLSCREEN = true;
 const int BLOCK_SIZE = 20;
 int outLineColor = I_LIONESS;
 
@@ -212,7 +212,25 @@ void update(Tetris &game, int currentTime, int& lastDrop, int worldTime, int& la
 	int deltaMs = currentTime - lastDrop;
 	int delay = 800 - game.level * 70;
 	if (fastDrop) delay = 0;
-	if (deltaMs > delay) {
+	if(fastDrop)
+	{
+		int x = game.GetPlayerX();
+		int y = game.GetPlayerY();
+		while(!game.isColliding(x,y+ 2,game.Player))
+		{
+			y += 2;
+		}
+		if(game.isColliding(x,y+1,game.Player))
+		{
+			y += 1;
+		}
+		game.SetPlayerY(y);
+		game.PlaceTetronimo();
+		nextShape(game);
+		lastXXX = game.GetPlayerX();
+		lastYYY= game.GetPlayerY();
+		fastDrop = false;
+	}else if (deltaMs > delay) {
 
 		if (game.isColliding(game.GetPlayerX(), game.GetPlayerY() + 1, game.Player))
 		{
