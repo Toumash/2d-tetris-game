@@ -17,11 +17,13 @@ const int FPS_LIMIT = 10;
 #include "main.h"
 #include <ctime>
 
+const int LEVEL_DURATION = 20;
+const int MAX_LEVEL = 10;
 
 const int FRAME_TIME = 1000 / FPS_LIMIT;
 const int SCREEN_WIDTH = 640;
 const int  SCREEN_HEIGHT = 480;
-const bool FULLSCREEN = false;
+const bool FULLSCREEN = true;
 const int BLOCK_SIZE = 20;
 int outLineColor = I_LIONESS;
 
@@ -105,6 +107,7 @@ void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY);
 void render(SDL_Surface* screen, Tetris& game);
 char** getShape(int index);
 char** rotate(char** array, int size);
+void nextShape(Tetris& game);
 
 // narysowanie napisu txt na powierzchni screen, zaczynaj¹c od punktu (x, y)
 // charset to bitmapa 128x128 zawieraj¹ca znaki
@@ -181,31 +184,33 @@ void nextShape(Tetris& game)
 	game.PlayerY = 0;
 }
 
-
-void update(Tetris &game, bool fastDrop, int currentTime, int& lastDrop,bool& win)
+void fastDrop(Tetris& game)
 {
-	if (fastDrop) {
-		while (!game.isColliding(game.PlayerX, game.PlayerY + 1, game.Player))
+	while (!game.isColliding(game.PlayerX, game.PlayerY + 1, game.Player))
+	{
+		game.PlayerY += 1;
+	}
+	game.PlaceTetronimo();
+	nextShape(game);
+}
+void update(Tetris &game, int currentTime, int& lastDrop, int worldTime, int& lastLevelTime)
+{
+	int deltaMs = currentTime - lastDrop;
+	if (deltaMs > 1000)
+	{
+		if (worldTime - lastLevelTime > LEVEL_DURATION && game.level < MAX_LEVEL)
 		{
-			game.PlayerY += 1;
+			game.level += 1;
+			lastLevelTime = worldTime;
 		}
-		game.PutShape();
-		nextShape(game);
-		lastDrop = currentTime;
-		game.DeleteFullLines();
-		win = game.IsOver();
-		return;
 	}
 
-	int deltaMs = currentTime - lastDrop;
-	if(deltaMs > 1000)
-	{
+	if (deltaMs > 1000 - game.level * 50) {
+
 		if (game.isColliding(game.PlayerX, game.PlayerY + 1, game.Player))
 		{
-			game.PutShape();
+			game.PlaceTetronimo();
 			nextShape(game);
-			game.DeleteFullLines();
-			win  = game.IsOver();
 		}
 		else {
 			game.PlayerY += 1;
@@ -213,7 +218,14 @@ void update(Tetris &game, bool fastDrop, int currentTime, int& lastDrop,bool& wi
 		lastDrop = currentTime;
 	}
 }
-void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int currentTime, int& lastDrop,bool& win)
+void restartGame(Tetris& game)
+{
+	game.DisposePlayer();
+	game.Dispose();
+	game = Tetris(game.Width, game.Height);
+	nextShape(game);
+}
+void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int currentTime, int& lastDrop, bool& debug, int& lastLevelTime)
 {
 	while (SDL_PollEvent(&event)) {
 		switch (event.type) {
@@ -246,7 +258,7 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 			}
 			case SDLK_DOWN:
 				if (!pause) {
-					update(game, true, currentTime, lastDrop, win);
+					fastDrop(game);
 				}
 				break;
 			case SDLK_RIGHT:
@@ -265,6 +277,16 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 			case SDLK_p:
 				pause = !pause;
 				break;
+			case SDLK_q:
+				debug = !debug;
+				break;
+			case SDLK_w:
+				game.level += 1;
+				lastLevelTime = game.worldTime;
+				break;
+			case SDLK_n:
+				restartGame(game);
+				break;
 			default:
 				break;
 			}
@@ -276,7 +298,6 @@ void handleInput(Tetris &game, SDL_Event &event, bool &quit, bool& pause, int cu
 		};
 	}
 }
-
 
 void DrawPlayer(SDL_Surface* screen, char** shape, int pivotX, int pivotY)
 {
@@ -321,9 +342,6 @@ void render(SDL_Surface* screen, Tetris& game)
 	DrawFullRectangle(screen, PADDING_X + game.Width * BLOCK_SIZE, PADDING_Y, BLOCK_SIZE, (game.Height - 2 + 1) * BLOCK_SIZE, outLineColor, Colors[I_LIGHTGREEN]);
 }
 
-char stringBuffer[128];
-
-
 char** rotate(char** array, int size)
 {
 	char** newArr = (char**)malloc(size * sizeof(char*));
@@ -356,11 +374,12 @@ char** getShape(int index)
 	}
 	return newArr;
 }
-// main
+
+char stringBuffer[128];
 #ifdef __cplusplus
 extern "C"
 #endif
-int main(int argc, char **argv) {	//double etiSpeed;
+int main(int argc, char **argv) {
 	SDL_Event event;
 	SDL_Surface *screen, *charset;
 	SDL_Texture *scrtex;
@@ -429,19 +448,19 @@ int main(int argc, char **argv) {	//double etiSpeed;
 	nextShape(game);
 
 	Uint32 currentTime = SDL_GetTicks(), lastTime;
-	double deltaS, worldTime;
+	double deltaS;
 
 	int renderTime = 0, deltaMs;
 	int fps = 0, frames = 0;
 	double fpsTimer = 0;
 	bool quit = false, pause = false;
-	worldTime = 0;
-	int score = 0, level = 1;
 	long int lastUpdate = SDL_GetTicks();
 	int updatesPerSecond = 0;
 	int logicUpdates = 0;
 	int lastDrop = lastUpdate;
-	bool over = false;
+
+	bool debug = false;
+	int lastLevelTime = 0;
 
 	while (!quit) {
 		lastTime = SDL_GetTicks();
@@ -449,13 +468,13 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		deltaS = deltaMs * 0.001;
 
 		currentTime = lastTime;
-		worldTime += deltaS;
+		game.worldTime += deltaS;
 
-		handleInput(game, event, quit, pause, currentTime, lastDrop,over);
+		handleInput(game, event, quit, pause, currentTime, lastDrop, debug, lastLevelTime);
 
-		if (!pause && !over) {
+		if (!pause) {
 			while (currentTime - lastUpdate > LOGIC_STEP_DEFAULT) {
-				update(game,false, currentTime, lastDrop,over);
+				update(game, currentTime, lastDrop, game.worldTime, lastLevelTime);
 				++updatesPerSecond;
 				lastUpdate += LOGIC_STEP_DEFAULT;
 			}
@@ -478,16 +497,28 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		};
 
 		DrawFullRectangle(screen, SCREEN_WIDTH - 200, 4, 190, 50, Colors[I_RED], Colors[I_BLUE]);
-		sprintf(stringBuffer, "%.02i FPS | render: %.02d ms", fps, renderTime);
+		sprintf(stringBuffer, "TETRIS THE GAME");
 		DrawString(screen, screen->w - 190, 10, stringBuffer, charset);
-		sprintf(stringBuffer, "%2i,%2i lg: %.02i", game.PlayerX, game.PlayerY, logicUpdates);
+		sprintf(stringBuffer, "Poziom: %1i Punkty:%4i", game.level, game.score);
 		DrawString(screen, screen->w - 190, 26, stringBuffer, charset);
+		sprintf(stringBuffer, "Czas %4.1f", game.worldTime);
+		DrawString(screen, screen->w - 190, 38, stringBuffer, charset);
+		if (debug) {
+			DrawFullRectangle(screen, SCREEN_WIDTH - 200, SCREEN_HEIGHT - 60, 190, 50, Colors[I_RED], Colors[I_BLUE]);
+			sprintf(stringBuffer, "%.02i FPS | render: %.02d ms", fps, renderTime);
+			DrawString(screen, screen->w - 190, SCREEN_HEIGHT - 55, stringBuffer, charset);
 
+			sprintf(stringBuffer, "%2i,%2i lg: %.02i", game.PlayerX, game.PlayerY, logicUpdates);
+			DrawString(screen, screen->w - 190, SCREEN_HEIGHT - 45, stringBuffer, charset);
+		}
+
+		bool over = game.IsOver();
 		if (pause)
 		{
 			sprintf(stringBuffer, "PAUSED. Click [P] to resume...");
 			DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, screen->h / 2, stringBuffer, charset);
-		}else if(over)
+		}
+		else if (over)
 		{
 			sprintf(stringBuffer, "Koniec gry. Kliknij T aby zagrac ponownie,co innego by wyjsc");
 			DrawString(screen, screen->w / 2 - strlen(stringBuffer) * 8 / 2, screen->h / 2, stringBuffer, charset);
@@ -500,18 +531,14 @@ int main(int argc, char **argv) {	//double etiSpeed;
 		SDL_RenderCopy(renderer, scrtex, NULL, NULL);
 		SDL_RenderPresent(renderer);
 
-		if(over)
+		if (over)
 		{
 			SDL_WaitEvent(&event);
-			if (event.type == SDL_KEYUP)
+			if (event.type == SDL_KEYDOWN)
 			{
 				if (event.key.keysym.sym == SDLK_t)
 				{
-					over = false;
-					game.DisposePlayer();
-					game.Dispose();
-					game = Tetris(WIDTH, HEIGHT);
-					nextShape(game);
+					restartGame(game);
 					// restart game
 				}
 				else

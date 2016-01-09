@@ -1,6 +1,8 @@
 #include <cstdlib>
 #include "main.h"
-#pragma once
+
+#ifndef __TETRIS__
+#define __TETRIS__
 
 struct Tetris
 {
@@ -11,6 +13,9 @@ struct Tetris
 	int Width;
 	int Height;
 	bool canRotate;
+
+	int score = 0, level = 0;
+	double worldTime = 0;
 
 	Tetris(int width, int height)
 	{
@@ -35,7 +40,7 @@ struct Tetris
 		}
 	}
 
-	bool isColliding(int dstX, int dstY,char** player) const
+	bool isColliding(int dstX, int dstY, char** player) const
 	{
 		char** matrix = this->Matrix;
 		int height = this->Height;
@@ -65,9 +70,12 @@ struct Tetris
 		}
 		return false;
 	}
-	void DeleteFullLines()
+
+	// returns the amount of deleted lines
+	int DeleteFullLines()
 	{
-		for (int row = 0; row < Height; row++)
+		int deletedAmount = 0;
+		for (int row = Height - 1; row > 0; row--)
 		{
 			bool full = true;
 			for (int x = 0; x < Width; x++)
@@ -79,19 +87,22 @@ struct Tetris
 			}
 			if (full)
 			{
+				deletedAmount++;
 				//removing process
 				// Moves all the upper lines one row down
-				for (int y = Height - 1; y > 0; y--)
+				for (int y = row; y > 0; y--)
 				{
 					for (int x = 0; x < Width; x++)
 					{
-						Matrix[y][x] = Matrix[y-1][x];
+						Matrix[y][x] = Matrix[y - 1][x];
 					}
 				}
 			}
 		}
+		return deletedAmount;
 	}
-	void PutShape()
+	int previouslyRemovedRows = 0;
+	void PlaceTetronimo()
 	{
 		for (int y = 0; y < SHAPE_SIZE; y++)
 		{
@@ -101,6 +112,27 @@ struct Tetris
 					Matrix[PlayerY - SHAPE_PIVOT + y][PlayerX - SHAPE_PIVOT + x] = Player[y][x];
 				}
 			}
+		}
+		// calculate point
+		int deletedRows = DeleteFullLines();
+		score += calculatePoints(level, deletedRows, previouslyRemovedRows);
+		previouslyRemovedRows = deletedRows;
+	}
+
+	static int calculatePoints(int level, int removedAmount, int previousRemoved)
+	{
+		switch (removedAmount)
+		{
+		case 1:
+			return 100 * (level + 1);
+		case 2:
+			return 200 * (level + 1);
+		case 3:
+			return 400 * (level + 1);
+		case 4:
+			return (previousRemoved > 4 ? 1200 : 800)*(level + 1);
+		default:
+			return 0;
 		}
 	}
 
@@ -137,9 +169,9 @@ struct Tetris
 	bool IsOver() const
 	{
 		bool over = false;
-		for (int x = 0; x < Width;x++)
+		for (int x = 0; x < Width; x++)
 		{
-			if(Matrix[2][x] != I_FREE)
+			if (Matrix[2][x] != I_FREE)
 			{
 				over = true;
 			}
@@ -147,3 +179,4 @@ struct Tetris
 		return over;
 	}
 };
+#endif
