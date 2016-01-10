@@ -45,6 +45,11 @@ public:
 		}
 	}
 
+	static Tetris LoadFromFile(const char * name)
+	{
+		
+	}
+
 	int GetPlayerX() const
 	{
 		return this->PlayerX;
