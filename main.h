@@ -1,4 +1,6 @@
-#pragma once
+#ifndef __MAIN_H__
+#define __MAIN_H__
+
 const char I_FREE = 0;
 const char I_BLACK = 0;
 const char I_GREEN = 1;
@@ -11,3 +13,8 @@ const char I_LIGHTGREEN = 6;
 const int SHAPE_SIZE = 5;
 
 const int SHAPE_PIVOT = 2;
+
+
+
+
+#endif
