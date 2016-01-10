@@ -15,6 +15,14 @@ const int SHAPE_SIZE = 5;
 const int SHAPE_PIVOT = 2;
 
 
+const int S_I = 0;
+const int S_Square = 1;
+const int S_Z = 2;
+const int S_RZ = 3;
+const int S_L = 4;
+const int S_RL = 5;
+const int S_T = 6;
+const int S_AMOUNT = 7;
 
 
 #endif
