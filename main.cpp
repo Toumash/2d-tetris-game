@@ -197,7 +197,7 @@ int getBlockDelay(int level)
 	return 800 - level * 70;
 }
 
-bool FASTDROP_STYLE_TELEPORT = true;
+bool FASTDROP_STYLE_TELEPORT = false;
 void update(Tetris &game, Uint32 currentTime, Uint32& lastDrop, double worldTime, double& lastLevelTime, bool& fastDrop)
 {
 
